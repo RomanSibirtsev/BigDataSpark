@@ -1,0 +1,23 @@
+FROM python:3.11-slim-bookworm
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+    PATH=/usr/local/lib/python3.11/site-packages/pyspark/bin:$PATH \
+    PYSPARK_PYTHON=python3
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openjdk-17-jre-headless curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir pyspark==3.5.5 psycopg2-binary==2.9.10 \
+    && mkdir -p /opt/spark-jars /app/app /app/sql
+
+RUN curl -fsSL https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.5/postgresql-42.7.5.jar \
+    -o /opt/spark-jars/postgresql.jar
+
+WORKDIR /app
+COPY app/ /app/app/
+COPY sql/ /app/sql/
+
+ENTRYPOINT ["spark-submit"]
+CMD ["--master", "local[*]", "--jars", "/opt/spark-jars/postgresql.jar", "/app/app/main.py"]

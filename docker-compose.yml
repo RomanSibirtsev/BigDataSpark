@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: bigdata
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: lab
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/postgres.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab -d bigdata"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    environment:
+      CLICKHOUSE_DB: analytics
+      CLICKHOUSE_USER: lab
+      CLICKHOUSE_PASSWORD: lab
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "18123:8123"
+      - "19000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user lab --password lab --query 'SELECT 1' >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  spark:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    environment:
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_DATABASE: bigdata
+      PG_USER: lab
+      PG_PASSWORD: lab
+      CLICKHOUSE_URL: http://clickhouse:8123/
+      CLICKHOUSE_DATABASE: analytics
+      CLICKHOUSE_USER: lab
+      CLICKHOUSE_PASSWORD: lab
+      SOURCE_PATH: /data/*.csv
+    volumes:
+      - ./исходные данные:/data:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  postgres_data:
+  clickhouse_data:
